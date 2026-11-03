@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Kafka -> Lambda -> AI anomaly detection -> Snowflake demo (requires an existing MSK cluster)'
+Parameters:
+  MskClusterArn:
+    Type: String
+    Description: Existing accessible Amazon MSK cluster ARN
+  KafkaTopic:
+    Type: String
+    Default: transaction-events
+  SnowflakeSecretArn:
+    Type: String
+    Description: Existing Secrets Manager secret ARN with Snowflake credential JSON
+  SnowflakeWarehouse:
+    Type: String
+    Default: COMPUTE_WH
+  SnowflakeDatabase:
+    Type: String
+    Default: EVENT_ANALYTICS
+  SnowflakeSchema:
+    Type: String
+    Default: RAW
+Resources:
+  EventProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      MemorySize: 2048
+      Timeout: 120
+      Environment:
+        Variables:
+          MODEL_PATH: /var/task/models/anomaly_detector.joblib
+          SINK: snowflake
+          SNOWFLAKE_SECRET_ARN: !Ref SnowflakeSecretArn
+          SNOWFLAKE_WAREHOUSE: !Ref SnowflakeWarehouse
+          SNOWFLAKE_DATABASE: !Ref SnowflakeDatabase
+          SNOWFLAKE_SCHEMA: !Ref SnowflakeSchema
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaMSKExecutionRole
+        - Statement:
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref SnowflakeSecretArn
+      Events:
+        KafkaRecords:
+          Type: MSK
+          Properties:
+            Stream: !Ref MskClusterArn
+            Topics:
+              - !Ref KafkaTopic
+            StartingPosition: LATEST
+            BatchSize: 100
+    Metadata:
+      Dockerfile: Dockerfile.lambda
+      DockerContext: ..
+      DockerTag: python3.12-v1
+Outputs:
+  FunctionArn:
+    Value: !GetAtt EventProcessorFunction.Arn

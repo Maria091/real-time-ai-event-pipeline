@@ -1,0 +1,10 @@
+# Serverless runtime packaged as a container image to accommodate scikit-learn.
+FROM public.ecr.aws/lambda/python:3.12
+WORKDIR /var/task
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir '.[snowflake,aws]'
+RUN mkdir -p /var/task/models && python -m event_pipeline.cli train-model --path /var/task/models/anomaly_detector.joblib
+ENV MODEL_PATH=/var/task/models/anomaly_detector.joblib
+ENV SINK=snowflake
+CMD ["event_pipeline.lambda_handler.handler"]

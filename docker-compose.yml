@@ -1,0 +1,27 @@
+# Local development ONLY. No authentication/TLS: do not expose to the internet.
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.3.1
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - '1'
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - '0'
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+    ports:
+      - '127.0.0.1:19092:19092'
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+volumes:
+  redpanda_data:
